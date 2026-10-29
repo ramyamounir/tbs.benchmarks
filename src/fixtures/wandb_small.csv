@@ -1,0 +1,6 @@
+"Name","Runtime","State","Tags","Notes","overall/percent_correct","overall/avg_rotation_error","overall/avg_num_monty_matching_steps","overall/percent_used_mlh_after_timeout","overall/avg_episode_run_time","overall/avg_prediction_error","overall/num_episodes","LM_2/overall/percent_correct","LM_2/overall/avg_rotation_error","LM_2/overall/avg_prediction_error","LM_2/overall/percent_used_mlh_after_timeout"
+"base_config_10distinctobj_dist_agent_k3b9xq2e","139","finished","","-","100","NaN","28.228571428571428","0","3.3273719821657455","0.3291414231904167","140","","","",""
+"base_config_10distinctobj_surf_agent_aaaa1111","189","finished","","-","90","3.5","27.814285714285713","0","8.313538103444236","0.2587418736091467","140","","","",""
+"base_config_10distinctobj_surf_agent_bbbb2222","2550","finished","","-","100","4.0","27.9","0","8.4","0.26","140","","","",""
+"randrot_noise_sim_on_scan_monty_world_m1zev91w","907","finished","","-","85","40.349214814814815","449.90833333333336","87.5","100.76751600702603","NaN","120","93.33333333333333","41.2","0.4","80"
+"dark_world_image_on_scanned_model_99l2zpjy","475","finished","","-","29.166666666666668","114.58445714285715","242.02083333333334","18.75","8.719679390390715","0.3897644044609769","48","","","",""

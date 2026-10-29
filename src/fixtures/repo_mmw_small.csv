@@ -1,0 +1,3 @@
+Experiment,Correct (%)|align right,Used MLH (%)|align right,Num Match Steps|align right,Run Time (mins)|align right,Episode Run Time (s)|align right,Num Episodes|hidden
+randrot_noise_sim_on_scan_monty_world,90.00,87.50,450,14,93,120
+world_image_on_scanned_model,66.67,62.50,374,10,11,48

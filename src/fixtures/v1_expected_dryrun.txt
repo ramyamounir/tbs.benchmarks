@@ -1,0 +1,8 @@
+# captured with: cd /home/ramy/tbp/tbp.benchmarks && .venv/bin/python src/tbp/compare.py --baseline "$S" --proposed "$REPO/src/fixtures/wandb_small.csv" --config "$REPO/src/fixtures/v1_small.yaml" --modify-in-place --dry-run (S = scratch dir with benchmarks/ycb_10objs.csv = repo_ycb_small.csv and benchmarks/montymeetsworld.csv = repo_mmw_small.csv; output paths had "$S/" stripped)
+
+=== Modify: benchmarks/montymeetsworld.csv ===
+randrot_noise_sim_on_scan_monty_world | Correct (%)|align right | 90.00 -> 93.33
+
+=== Modify: benchmarks/ycb_10objs.csv ===
+base_config_10distinctobj_surf_agent | Correct (%)|align right | 100.00 -> 90.00
+base_config_10distinctobj_surf_agent | Rotation Error (degrees)|align right | 3.64 -> 3.50

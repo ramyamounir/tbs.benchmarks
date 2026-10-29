@@ -1,0 +1,131 @@
+# Trimmed v1 config (format of /home/ramy/tbp/tbp.benchmarks/configs/configs_repo_wandb.yaml) for
+# the committed fixtures: 2 baseline tables + 1 wandb export, 3 metrics (incl. an lm2_* variant),
+# 3 experiments. Runs unchanged with v1 compare.py (see spec Phase 2a "v1 fixture capture").
+version: 1
+
+files:
+  ycb10_base:
+    path: '${BASELINE_PATH}/benchmarks/ycb_10objs.csv'
+    csv:
+      sep: ','
+      header: true
+      encoding: 'utf-8'
+
+  mmw_base:
+    path: '${BASELINE_PATH}/benchmarks/montymeetsworld.csv'
+    csv:
+      sep: ','
+      header: true
+      encoding: 'utf-8'
+
+  wandb_prop:
+    path: '${PROPOSED_PATH}'
+    csv:
+      sep: ','
+      header: true
+      encoding: 'utf-8'
+
+metrics:
+  percent_correct:
+    output_name: percent_correct
+    units: '%'
+    higher_is_better: true
+    tolerance: 0.10
+    columns:
+      baseline:
+        column: 'Correct (%)|align right'
+        transforms:
+          - kind: to_number
+          - kind: clip
+            min: 0
+            max: 100
+          - kind: round
+            decimals: 2
+      proposed:
+        column: 'overall/percent_correct'
+        transforms:
+          - kind: to_number
+          - kind: clip
+            min: 0
+            max: 100
+          - kind: round
+            decimals: 2
+
+  lm2_percent_correct:
+    output_name: percent_correct
+    units: '%'
+    higher_is_better: true
+    tolerance: 0.10
+    columns:
+      baseline:
+        column: 'Correct (%)|align right'
+        transforms:
+          - kind: to_number
+          - kind: clip
+            min: 0
+            max: 100
+          - kind: round
+            decimals: 2
+      proposed:
+        column: 'LM_2/overall/percent_correct'
+        transforms:
+          - kind: to_number
+          - kind: clip
+            min: 0
+            max: 100
+          - kind: round
+            decimals: 2
+
+  rotation_error:
+    output_name: rotation_error
+    units: 'deg'
+    higher_is_better: false
+    tolerance: 0.01
+    columns:
+      baseline:
+        column: 'Rotation Error (degrees)|align right'
+        transforms:
+          - kind: to_number
+          - kind: round
+            decimals: 2
+      proposed:
+        column: 'overall/avg_rotation_error'
+        transforms:
+          - kind: to_number
+          - kind: round
+            decimals: 2
+
+experiments:
+  - name: 'base_config_10distinctobj_dist_agent'
+    files:
+      baseline: ycb10_base
+      proposed: wandb_prop
+    metrics:
+      - percent_correct
+      - rotation_error
+  - name: 'base_config_10distinctobj_surf_agent'
+    files:
+      baseline: ycb10_base
+      proposed: wandb_prop
+    metrics:
+      - percent_correct
+      - rotation_error
+  - name: 'randrot_noise_sim_on_scan_monty_world'
+    files:
+      baseline: mmw_base
+      proposed: wandb_prop
+    metrics:
+      - lm2_percent_correct
+
+output:
+  mode: table
+  table:
+    float_precision: 2
+    include_units_in_headers: true
+    show_deltas: true
+    show_pass_fail: true
+    pass_fail_symbols:
+      pass: '⬜'
+      better: '✅'
+      worse: '❌'
+      na: '—'

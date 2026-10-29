@@ -1,0 +1,4 @@
+Experiment,Correct (%)|align right,Used MLH (%)|align right,Num Match Steps|align right,Rotation Error (degrees)|align right,Run Time (mins)|align right,Episode Run Time (s)|align right,Num Episodes|hidden
+base_config_10distinctobj_dist_agent,100.00,0.00,28,10.32,2,3,140
+base_config_10distinctobj_surf_agent,100.00,0.00,28,3.64,3,8,140
+randrot_noise_10distinctobj_dist_agent,100.00,0.00,30,16.94,2,4,100

@@ -1,0 +1,130 @@
+/*
+ * Design tokens (light + dark). The single source of every UI and chart colour.
+ * Components use the Tailwind utilities mapped in src/index.css (`bg-panel`, `text-muted`, …);
+ * SVG chart / canvas code reads tokens with readToken('--x') (src/theme/readToken.ts).
+ * Never hard-code these values elsewhere. Base tokens are tbs.models'; the verdict / heatmap /
+ * run palette is spec Phase 1 "Design tokens".
+ */
+
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --border: #e2e5ea;
+  --text: #16181d;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --accent: #2563eb;
+  --accent-bg: #e8effe;
+  --select: #f59e0b;
+  --brand-blue: #00a0df;
+  --brand-navy: #3b3862;
+  --row-alt: #f8f9fb;
+  /* Verdicts: blue vs vermillion (colour-blind safe), never red/green. */
+  --better: #1f6fb5;
+  --better-bg: #dceaf7;
+  --worse: #c04b00;
+  --worse-bg: #fde6d5;
+  --heat-better-1: #d3e4f4;
+  --heat-better-2: #8ab8e0;
+  --heat-better-3: #2d79be;
+  --heat-worse-1: #fbddc8;
+  --heat-worse-2: #f2a26e;
+  --heat-worse-3: #d9620f;
+  --heat-same: #eef0f3;
+  /* Amber: warnings (episode mismatch, duplicates, unassigned card) only, never a verdict or run. */
+  --warn: #b45309;
+  --warn-bg: #fef3c7;
+  /* Inline errors (invalid input, failed download). Not a verdict colour. */
+  --danger: #b91c1c;
+  --baseline: #9ca3af;
+  --run-1: #8b5cf6;
+  --run-2: #db2777;
+  --run-3: #0d9488;
+  --run-4: #65a30d;
+  --run-5: #92400e;
+  --run-6: #475569;
+  color-scheme: light;
+}
+
+/* Dark token set. Applied by the store-driven attribute set in ThemeProvider. */
+:root[data-theme='dark'] {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --border: #262b35;
+  --text: #e6e8ee;
+  --muted: #9aa3b2;
+  --faint: #6b7280;
+  --accent: #60a5fa;
+  --accent-bg: #1b2a4a;
+  --select: #fbbf24;
+  --brand-blue: #00a0df;
+  --brand-navy: #c7c4e8;
+  --row-alt: #1c2029;
+  --better: #6ab0ee;
+  --better-bg: #13304a;
+  --worse: #f59152;
+  --worse-bg: #4a2a16;
+  --heat-better-1: #15324d;
+  --heat-better-2: #1f5b8e;
+  --heat-better-3: #4a93d6;
+  --heat-worse-1: #4f2a14;
+  --heat-worse-2: #8c4518;
+  --heat-worse-3: #e07a2e;
+  --heat-same: #20242c;
+  --warn: #fbbf24;
+  --warn-bg: #3b2f0b;
+  --danger: #f87171;
+  --baseline: #6b7280;
+  --run-1: #a78bfa;
+  --run-2: #f472b6;
+  --run-3: #2dd4bf;
+  --run-4: #a3e635;
+  --run-5: #d4a373;
+  --run-6: #94a3b8;
+  color-scheme: dark;
+}
+
+/* Pre-JS fallback: before ThemeProvider sets data-theme, follow the OS preference. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #262b35;
+    --text: #e6e8ee;
+    --muted: #9aa3b2;
+    --faint: #6b7280;
+    --accent: #60a5fa;
+    --accent-bg: #1b2a4a;
+    --select: #fbbf24;
+    --brand-blue: #00a0df;
+    --brand-navy: #c7c4e8;
+    --row-alt: #1c2029;
+    --better: #6ab0ee;
+    --better-bg: #13304a;
+    --worse: #f59152;
+    --worse-bg: #4a2a16;
+    --heat-better-1: #15324d;
+    --heat-better-2: #1f5b8e;
+    --heat-better-3: #4a93d6;
+    --heat-worse-1: #4f2a14;
+    --heat-worse-2: #8c4518;
+    --heat-worse-3: #e07a2e;
+    --heat-same: #20242c;
+    --warn: #fbbf24;
+    --warn-bg: #3b2f0b;
+    --danger: #f87171;
+    --baseline: #6b7280;
+    --run-1: #a78bfa;
+    --run-2: #f472b6;
+    --run-3: #2dd4bf;
+    --run-4: #a3e635;
+    --run-5: #d4a373;
+    --run-6: #94a3b8;
+    color-scheme: dark;
+  }
+}
+
+/* File-derived names: keep RTL text from reordering surrounding UI (Tailwind's `isolate` is isolation, not this). */
+.bidi-isolate {
+  unicode-bidi: isolate;
+}

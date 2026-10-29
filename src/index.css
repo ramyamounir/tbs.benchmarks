@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+@import './theme/tokens.css'; /* :root / [data-theme="dark"] variables + .bidi-isolate */
+
+/* Dark variant keyed to the store-driven attribute, not the OS media query. Rarely needed:
+   token-based utilities switch automatically because the variables change. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Layout breakpoints (spec Phase 7 "Responsive rules"): `wide:` = docked sidebar and the
+   three-column Config view; `mid:` = above the overlay-drawer / Config-tabs layout. */
+@custom-variant wide (@media (min-width: 1100px));
+@custom-variant mid (@media (min-width: 900px));
+
+/* `inline` makes utilities emit var(--panel) etc. directly, so they follow the theme switch. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-select: var(--select);
+  --color-row-alt: var(--row-alt);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-navy: var(--brand-navy);
+  --color-better: var(--better);
+  --color-better-bg: var(--better-bg);
+  --color-worse: var(--worse);
+  --color-worse-bg: var(--worse-bg);
+  --color-heat-better-1: var(--heat-better-1);
+  --color-heat-better-2: var(--heat-better-2);
+  --color-heat-better-3: var(--heat-better-3);
+  --color-heat-worse-1: var(--heat-worse-1);
+  --color-heat-worse-2: var(--heat-worse-2);
+  --color-heat-worse-3: var(--heat-worse-3);
+  --color-heat-same: var(--heat-same);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-baseline: var(--baseline);
+  --color-run-1: var(--run-1);
+  --color-run-2: var(--run-2);
+  --color-run-3: var(--run-3);
+  --color-run-4: var(--run-4);
+  --color-run-5: var(--run-5);
+  --color-run-6: var(--run-6);
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}

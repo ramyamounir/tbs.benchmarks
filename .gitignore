@@ -23,8 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# Model files (never commit)
-*.pt
+# Benchmark CSVs are user data and never committed; only the small hand-written test fixtures are.
+*.csv
+!/src/fixtures/*.csv
 
 # Claude Code local state
 /.envrc
