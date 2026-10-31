@@ -220,15 +220,22 @@ describe('load operations', () => {
     const { store } = newStore();
     const g = () => store.getState();
     const A = g().beginLoad('run', 'a');
-    expect(g().sources.loading).toEqual({ opId: A.opId, label: 'a', done: 0, total: 0 });
+    const p = (opId: number, label: string, done: number, total: number) => ({
+      opId,
+      label,
+      done,
+      total,
+      waitUntil: null,
+    });
+    expect(g().sources.loading).toEqual(p(A.opId, 'a', 0, 0));
     const B = g().beginLoad('run', 'b');
     expect(g().sources.loading?.opId).toBe(B.opId);
     g().reportProgress(A.opId, 1, 3);
-    expect(g().sources.loading).toEqual({ opId: B.opId, label: 'b', done: 0, total: 0 });
+    expect(g().sources.loading).toEqual(p(B.opId, 'b', 0, 0));
     g().reportProgress(B.opId, 2, 7);
-    expect(g().sources.loading).toEqual({ opId: B.opId, label: 'b', done: 2, total: 7 });
+    expect(g().sources.loading).toEqual(p(B.opId, 'b', 2, 7));
     g().commitLoad(B.opId, [], []);
-    expect(g().sources.loading).toEqual({ opId: A.opId, label: 'a', done: 1, total: 3 });
+    expect(g().sources.loading).toEqual(p(A.opId, 'a', 1, 3));
     g().commitLoad(A.opId, [], []);
     expect(g().sources.loading).toBeNull();
   });
@@ -356,6 +363,42 @@ describe('GitHub ref cache', () => {
     const g = () => store.getState();
     g().commitLoad(g().beginLoad('baseline', 'gh').opId, [gh()], []);
     expect(g().session.github['o/r@main']).toEqual({ sha: meta.sha, date: meta.date });
+  });
+
+  it('reportWait sets and clears waitUntil on the pending op; cancelLoad aborts it', () => {
+    const { store } = newStore();
+    const g = () => store.getState();
+    const t = g().beginLoad('run', 'gh');
+    g().reportProgress(t.opId, 1, 3);
+    g().reportWait(t.opId, 123_456);
+    expect(g().sources.loading).toEqual({
+      opId: t.opId,
+      label: 'gh',
+      done: 1,
+      total: 3,
+      waitUntil: 123_456,
+    });
+    g().reportWait(t.opId, null);
+    expect(g().sources.loading?.waitUntil).toBeNull();
+    g().cancelLoad(t.opId);
+    expect(t.signal.aborted).toBe(true);
+    expect(g().sources.loading).toBeNull();
+    g().commitLoad(t.opId, [gh()], []); // ignored: the op is gone
+    expect(g().sources.runs).toEqual([]);
+    expect(g().session.github).toEqual({});
+  });
+
+  it('rememberGithubRef caches a resolved ref before any commit', () => {
+    const { store } = newStore();
+    const g = () => store.getState();
+    const before = g().session;
+    g().rememberGithubRef('o', 'r', 'feat/x', { sha: meta.sha, date: meta.date });
+    expect(g().session.github['o/r@feat/x']).toEqual({ sha: meta.sha, date: meta.date });
+    expect(g().session.github['o/r@main']).toBeUndefined();
+    const same = g().session;
+    g().rememberGithubRef('o', 'r', 'feat/x', { sha: meta.sha, date: meta.date });
+    expect(g().session).toBe(same); // unchanged value → no new state
+    expect(before).not.toBe(same);
   });
 
   it('a discarded commit writes nothing', () => {

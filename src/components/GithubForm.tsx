@@ -12,7 +12,8 @@ import { TextInput } from './ui/TextInput';
 
 /**
  * Repository + ref inputs and the load button (Start "Baseline from GitHub" card and the GitHub
- * modal). Input is validated before any request; the resolved-ref cache skips one API call.
+ * modal). Input is validated before any request; the resolved-ref cache skips one API call and is
+ * filled as soon as the ref resolves, so a load that fails later does not resolve again on retry.
  */
 export function GithubForm({
   role,
@@ -34,8 +35,14 @@ export function GithubForm({
     if (!valid) return;
     const cachedRef =
       useAppStore.getState().session.github[githubRefKey(valid.owner, valid.repo, valid.ref)];
-    void runLoad(role, `${valid.repo}@${valid.ref}`, (signal, onProgress) =>
-      loadGithubSource(repo, ref, signal, onProgress, cachedRef),
+    const { owner, repo: r, ref: f } = valid;
+    void runLoad(role, `${r}@${f}`, (signal, onProgress, onWait) =>
+      loadGithubSource(repo, ref, signal, {
+        onProgress,
+        onWait,
+        cachedRef,
+        onResolved: (resolved) => useAppStore.getState().rememberGithubRef(owner, r, f, resolved),
+      }),
     );
     onStarted?.();
   };

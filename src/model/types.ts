@@ -64,6 +64,8 @@ export interface LoadProgress {
   label: string;
   done: number;
   total: number;
+  /** Epoch ms when a pending retry wait (GitHub throttling) ends; null when not waiting. */
+  waitUntil: number | null;
 }
 
 // ---- Saved configs ----

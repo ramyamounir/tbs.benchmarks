@@ -113,7 +113,7 @@ export interface SessionState {
     fileEnabled: Record<string, boolean>;
   };
   rowChoices: Record<string, number>; // `${sourceId}\u0000${table}\u0000${experiment}` → chosen table row index (an index into Table.csv.rows, i.e. a value of RowMatch.candidates), never a position in the candidates list (Phase 2a "Duplicates")
-  github: Record<string, { sha: string; date: string }>; // resolved-ref cache, key githubRefKey(owner, repo, ref) from validated input; written only by commitLoad (Phase 3 "GitHub ref cache"); initial {}
+  github: Record<string, { sha: string; date: string }>; // resolved-ref cache, key githubRefKey(owner, repo, ref) from validated input; written by commitLoad and by rememberGithubRef as soon as a load resolves its ref (Phase 3 "GitHub ref cache"); initial {}
 }
 
 /** `${owner}/${repo}@${ref}`; inputs are already validated by validateGithubInput (Phase 3). */
@@ -140,7 +140,18 @@ export interface AppActions {
   setSystemPrefersDark(dark: boolean): void;
   beginLoad(role: LoadRole, label: string): LoadTicket;
   reportProgress(opId: number, done: number, total: number): void;
+  /** A retry wait started (epoch ms when it ends) or ended (null) for a pending op. */
+  reportWait(opId: number, waitUntil: number | null): void;
+  /** Aborts a pending op (its loader resolves with nothing and its commit is ignored). */
+  cancelLoad(opId: number): void;
   commitLoad(opId: number, sources: Source[], errors: LoadError[]): void;
+  /** Caches a resolved ref before the load finishes, so a failed load does not re-resolve on retry. */
+  rememberGithubRef(
+    owner: string,
+    repo: string,
+    ref: string,
+    resolved: { sha: string; date: string },
+  ): void;
   removeSource(id: string): void;
   setBaseline(id: string): void;
   reorderRuns(ids: string[]): void;
@@ -586,7 +597,7 @@ export function createAppStore(storage?: Storage) {
           }
         }
         const controller = new AbortController();
-        const progress: LoadProgress = { opId, label, done: 0, total: 0 };
+        const progress: LoadProgress = { opId, label, done: 0, total: 0, waitUntil: null };
         ops.set(opId, { role, label, controller, progress });
         set((s) => ({ sources: { ...s.sources, loading: progress } }));
         return { opId, signal: controller.signal };
@@ -594,10 +605,33 @@ export function createAppStore(storage?: Storage) {
       reportProgress(opId, done, total) {
         const op = ops.get(opId);
         if (!op) return;
-        op.progress = { opId, label: op.label, done, total };
+        op.progress = { ...op.progress, done, total };
         if (Math.max(...ops.keys()) === opId) {
           set((s) => ({ sources: { ...s.sources, loading: op.progress } }));
         }
+      },
+      reportWait(opId, waitUntil) {
+        const op = ops.get(opId);
+        if (!op || op.progress.waitUntil === waitUntil) return;
+        op.progress = { ...op.progress, waitUntil };
+        if (Math.max(...ops.keys()) === opId) {
+          set((s) => ({ sources: { ...s.sources, loading: op.progress } }));
+        }
+      },
+      cancelLoad(opId) {
+        const op = ops.get(opId);
+        if (!op) return;
+        op.controller.abort();
+        ops.delete(opId);
+        set((s) => ({ sources: { ...s.sources, loading: currentProgress() } }));
+      },
+      rememberGithubRef(owner, repo, ref, resolved) {
+        const key = githubRefKey(owner, repo, ref);
+        set((s) => {
+          const cur = s.session.github[key];
+          if (cur && cur.sha === resolved.sha && cur.date === resolved.date) return s;
+          return { session: { ...s.session, github: { ...s.session.github, [key]: resolved } } };
+        });
       },
       commitLoad(opId, incoming, errors) {
         const op = ops.get(opId);

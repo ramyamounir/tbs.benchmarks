@@ -4,6 +4,7 @@ import { useAppStore, type LoadRole } from '../state/store';
 export type Loader = (
   signal: AbortSignal,
   onProgress: (done: number, total: number) => void,
+  onWait: (waitUntil: number | null) => void,
 ) => Promise<{ sources: Source[]; errors: LoadError[] }>;
 
 /**
@@ -16,7 +17,11 @@ export async function runLoad(role: LoadRole, label: string, loader: Loader): Pr
   const { opId, signal } = store.beginLoad(role, label);
   let result: { sources: Source[]; errors: LoadError[] };
   try {
-    result = await loader(signal, (d, t) => useAppStore.getState().reportProgress(opId, d, t));
+    result = await loader(
+      signal,
+      (d, t) => useAppStore.getState().reportProgress(opId, d, t),
+      (until) => useAppStore.getState().reportWait(opId, until),
+    );
   } catch (err) {
     // Defensive only: loaders never throw.
     result = { sources: [], errors: [{ file: label, message: String(err), reason: 'parse' }] };

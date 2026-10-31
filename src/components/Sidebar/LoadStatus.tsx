@@ -1,12 +1,30 @@
+import { useCallback, useSyncExternalStore } from 'react';
 import { useAppStore } from '../../state/store';
 import { DisplayName } from '../../util/DisplayName';
 import { Button } from '../ui/Button';
+
+const subscribeClock = (onTick: () => void) => {
+  const id = setInterval(onTick, 1000);
+  return () => clearInterval(id);
+};
+const noClock = () => () => {};
+
+/** Whole seconds until `until` (the clock is an external store, read once a second); 0 once reached. */
+function useCountdown(until: number | null): number {
+  const secondsLeft = useCallback(
+    () => (until === null ? 0 : Math.max(0, Math.ceil((until - Date.now()) / 1000))),
+    [until],
+  );
+  return useSyncExternalStore(until === null ? noClock : subscribeClock, secondsLeft, secondsLeft);
+}
 
 /** Progress pill while a load is pending, and the load errors (every file-derived part escaped). */
 export function LoadStatus() {
   const loading = useAppStore((s) => s.sources.loading);
   const errors = useAppStore((s) => s.sources.errors);
   const clear = useAppStore((s) => s.clearLoadErrors);
+  const cancel = useAppStore((s) => s.cancelLoad);
+  const waitSeconds = useCountdown(loading?.waitUntil ?? null);
   if (loading === null && errors.length === 0) return null;
   return (
     <div className="mt-2 flex flex-col gap-2">
@@ -19,7 +37,11 @@ export function LoadStatus() {
             aria-hidden="true"
             className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent"
           />
-          {loading.total > 0 ? (
+          {loading.waitUntil !== null ? (
+            <span className="min-w-0 truncate" title="GitHub is throttling this network">
+              GitHub asked us to wait · retrying in {waitSeconds} s
+            </span>
+          ) : loading.total > 0 ? (
             <span className="min-w-0 truncate">
               Reading {loading.total} {loading.total === 1 ? 'file' : 'files'}… {loading.done}/
               {loading.total}
@@ -31,6 +53,14 @@ export function LoadStatus() {
               <span className="shrink-0">…</span>
             </span>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto shrink-0"
+            onClick={() => cancel(loading.opId)}
+          >
+            Cancel
+          </Button>
         </div>
       )}
       {errors.length > 0 && (

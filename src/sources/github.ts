@@ -51,13 +51,40 @@ export function validateGithubInput(ownerRepo: string, ref: string): GithubInput
   return { owner, repo, ref: r };
 }
 
-/** Thrown for a 403/429 with `x-ratelimit-remaining: 0`; `resetAt` is epoch ms or null. */
+/**
+ * Retries on a transient 429/5xx (and a 403 that carries `retry-after`), never on the hourly quota.
+ * GitHub's throttling is per client IP and typically lasts tens of seconds (a VPN or shared network
+ * makes it common), so the waits are long and visible rather than short and silent. raw.github-
+ * usercontent.com does not expose `retry-after` to browser scripts, so the backoff is our own
+ * schedule unless the API says otherwise. `GITHUB_RETRY_BUDGET_MS` bounds the total wait per load.
+ */
+export const GITHUB_MAX_ATTEMPTS = 5;
+export const GITHUB_RETRY_BUDGET_MS = 90_000;
+const RETRY_BASE_MS = 2000; // 2 s, 4 s, 8 s, 16 s
+const RETRY_MAX_MS = 60_000;
+
+/** Per-load retry state: the remaining wait budget and the UI callback for a pending wait. */
+export interface RetryContext {
+  budgetMs: number;
+  onWait?: (waitUntil: number | null) => void;
+}
+
+/**
+ * Thrown for a 403/429. `quota` is the hourly limit (`x-ratelimit-remaining: 0`, final on the first
+ * response); `throttle` is GitHub's transient throttling that outlived the retries. `resetAt` is
+ * epoch ms (from `x-ratelimit-reset` or `retry-after`) or null.
+ */
 export class GitHubRateLimited extends Error {
+  readonly kind: 'quota' | 'throttle';
   readonly resetAt: number | null;
-  constructor(resetAt: number | null) {
+  /** The throttling host (one of ALLOWED_ORIGINS), for the message only. */
+  readonly host: string;
+  constructor(kind: 'quota' | 'throttle', resetAt: number | null, host: string) {
     super('GitHub rate limit reached');
     this.name = 'GitHubRateLimited';
+    this.kind = kind;
     this.resetAt = resetAt;
+    this.host = host;
   }
 }
 
@@ -98,31 +125,119 @@ function originOk(url: string): boolean {
 
 function rateLimitReset(res: Response): number | null {
   const reset = Number(res.headers.get('x-ratelimit-reset'));
-  return Number.isFinite(reset) && reset > 0 ? reset * 1000 : null;
+  if (Number.isFinite(reset) && reset > 0) return reset * 1000;
+  const after = retryAfterMs(res);
+  return after === null ? null : Date.now() + after;
 }
 
-/** The one place `fetch` is called. Checks the origin before and after, maps HTTP failures. */
-async function ghFetch(url: string, signal: AbortSignal, api: boolean): Promise<Response> {
-  if (!originOk(url)) throw new GitHubError('network', UNEXPECTED);
-  const res = await fetch(url, {
-    credentials: 'omit',
-    referrerPolicy: 'no-referrer',
-    redirect: 'follow',
-    cache: 'no-cache',
-    signal,
-    headers: api ? { Accept: 'application/vnd.github+json' } : {},
+/** `retry-after` in ms (seconds or an HTTP date), or null when absent/unparsable. */
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers.get('retry-after');
+  if (raw === null) return null;
+  const secs = Number(raw);
+  if (Number.isFinite(secs) && secs >= 0) return secs * 1000;
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+function isQuotaExhausted(res: Response): boolean {
+  return (
+    (res.status === 403 || res.status === 429) && res.headers.get('x-ratelimit-remaining') === '0'
+  );
+}
+
+/** Transient: GitHub's throttling (429, or 403 with `retry-after`) and server errors. */
+function isTransient(res: Response): boolean {
+  if (res.status === 429 || res.status >= 500) return true;
+  return res.status === 403 && res.headers.has('retry-after');
+}
+
+function abortError(): Error {
+  return new DOMException('The load was aborted', 'AbortError');
+}
+
+/** Abortable delay; rejects with an AbortError as soon as `signal` fires. */
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
   });
-  if (!originOk(res.url || url)) throw new GitHubError('network', UNEXPECTED);
-  if (res.ok) return res;
-  if (
-    (res.status === 403 || res.status === 429) &&
-    res.headers.get('x-ratelimit-remaining') === '0'
-  ) {
-    throw new GitHubRateLimited(rateLimitReset(res));
+}
+
+/** Delay before attempt `attempt + 1`: `retry-after` when GitHub sends one, else 2 s, 4 s, 8 s, ... */
+function retryDelay(res: Response, attempt: number): number {
+  const after = retryAfterMs(res);
+  const backoff = RETRY_BASE_MS * 2 ** attempt;
+  return Math.min(RETRY_MAX_MS, after === null ? backoff : Math.max(after, backoff));
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'github.com';
   }
-  if (res.status === 404) throw new GitHubError('not-found', NOT_FOUND);
-  // The body (JSON message, HTML error page) is never read or shown.
-  throw new GitHubError('network', `GitHub request failed (HTTP ${res.status})`);
+}
+
+/**
+ * The one place `fetch` is called. Checks the origin before and after, maps HTTP failures.
+ * `immutable` marks a SHA-keyed URL whose content can never change: the browser may serve it from
+ * its cache without a request. The branch → commit lookup must always revalidate. Transient
+ * failures are retried while `retry.budgetMs` lasts; every wait is reported through
+ * `retry.onWait` (epoch ms, then null when it ends) and is abortable.
+ */
+async function ghFetch(
+  url: string,
+  signal: AbortSignal,
+  api: boolean,
+  immutable: boolean,
+  retry: RetryContext,
+): Promise<Response> {
+  if (!originOk(url)) throw new GitHubError('network', UNEXPECTED);
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      redirect: 'follow',
+      cache: immutable ? 'force-cache' : 'no-cache',
+      signal,
+      headers: api ? { Accept: 'application/vnd.github+json' } : {},
+    });
+    if (!originOk(res.url || url)) throw new GitHubError('network', UNEXPECTED);
+    if (res.ok) return res;
+    const host = hostOf(res.url || url);
+    if (isQuotaExhausted(res)) throw new GitHubRateLimited('quota', rateLimitReset(res), host);
+    if (isTransient(res) && attempt + 1 < GITHUB_MAX_ATTEMPTS) {
+      const delay = retryDelay(res, attempt);
+      if (delay <= retry.budgetMs) {
+        retry.budgetMs -= delay;
+        retry.onWait?.(Date.now() + delay);
+        try {
+          await sleep(delay, signal);
+        } finally {
+          retry.onWait?.(null);
+        }
+        continue;
+      }
+    }
+    if (res.status === 429 || (res.status === 403 && res.headers.has('retry-after'))) {
+      throw new GitHubRateLimited('throttle', rateLimitReset(res), host);
+    }
+    if (res.status === 404) throw new GitHubError('not-found', NOT_FOUND);
+    // The body (JSON message, HTML error page) is never read or shown.
+    throw new GitHubError('network', `GitHub request failed (HTTP ${res.status})`);
+  }
 }
 
 async function json(res: Response): Promise<unknown> {
@@ -137,13 +252,16 @@ async function json(res: Response): Promise<unknown> {
 const isObj = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
 
+const noRetry = (): RetryContext => ({ budgetMs: 0 });
+
 export async function resolveRef(
   owner: string,
   repo: string,
   ref: string,
   signal: AbortSignal,
+  retry: RetryContext = noRetry(),
 ): Promise<{ sha: string; date: string }> {
-  const body = await json(await ghFetch(commitsUrl(owner, repo, ref), signal, true));
+  const body = await json(await ghFetch(commitsUrl(owner, repo, ref), signal, true, false, retry));
   if (!isObj(body)) throw new GitHubError('network', UNEXPECTED);
   const sha = body.sha;
   const commit = body.commit;
@@ -161,8 +279,9 @@ export async function listBenchmarks(
   repo: string,
   sha: string,
   signal: AbortSignal,
+  retry: RetryContext = noRetry(),
 ): Promise<{ names: string[]; errors: LoadError[] }> {
-  const body = await json(await ghFetch(contentsUrl(owner, repo, sha), signal, true));
+  const body = await json(await ghFetch(contentsUrl(owner, repo, sha), signal, true, true, retry));
   if (!Array.isArray(body)) throw new GitHubError('network', UNEXPECTED);
   const names: string[] = [];
   const errors: LoadError[] = [];
@@ -196,9 +315,10 @@ export async function fetchTable(
   sha: string,
   name: string,
   signal: AbortSignal,
+  retry: RetryContext = noRetry(),
 ): Promise<string> {
   if (!SHA_RE.test(sha) || !NAME_RE.test(name)) throw new GitHubError('network', UNEXPECTED);
-  const res = await ghFetch(rawUrl(owner, repo, sha, name), signal, false);
+  const res = await ghFetch(rawUrl(owner, repo, sha, name), signal, false, true, retry);
   const length = Number(res.headers.get('content-length'));
   if (Number.isFinite(length) && length > GITHUB_MAX_FILE_BYTES) {
     throw new GitHubError('too-large', 'File too large (> 50 MB)');
@@ -221,18 +341,35 @@ export function formatResetTime(resetAt: number): string {
 
 function toLoadError(err: unknown, file: string): LoadError {
   if (err instanceof GitHubRateLimited) {
-    return {
-      file,
-      message:
-        err.resetAt === null
-          ? 'GitHub rate limit reached (60 requests per hour); try again later'
-          : `GitHub rate limit reached (60 requests per hour); try again after ${formatResetTime(err.resetAt)}`,
-      reason: 'rate-limited',
-    };
+    const when =
+      err.resetAt === null ? 'try again later' : `try again after ${formatResetTime(err.resetAt)}`;
+    const message =
+      err.kind === 'quota'
+        ? `GitHub rate limit reached (60 requests per hour); ${when}`
+        : `${err.host} is throttling this network (a VPN or shared connection can cause this); ${when}`;
+    return { file, message, reason: 'rate-limited' };
   }
   if (err instanceof GitHubError) return { file, message: err.message, reason: err.reason };
   // Anything else (offline, CORS, DNS): a fixed message, never the error text of a response.
   return { file, message: 'Could not reach GitHub', reason: 'network' };
+}
+
+export interface ResolvedRef {
+  sha: string;
+  date: string;
+}
+
+export interface LoadGithubOptions {
+  onProgress?: (done: number, total: number) => void;
+  /** Skips the branch → commit lookup. */
+  cachedRef?: ResolvedRef;
+  /**
+   * Fires as soon as the ref is resolved (before any file is fetched) so the caller can cache the
+   * SHA even when a later request fails.
+   */
+  onResolved?: (resolved: ResolvedRef) => void;
+  /** A retry wait started (epoch ms when it ends) or ended (null); for the progress pill. */
+  onWait?: (waitUntil: number | null) => void;
 }
 
 /**
@@ -243,9 +380,10 @@ export async function loadGithubSource(
   ownerRepo: string,
   ref: string,
   signal: AbortSignal,
-  onProgress?: (done: number, total: number) => void,
-  cachedRef?: { sha: string; date: string },
+  opts: LoadGithubOptions = {},
 ): Promise<{ sources: Source[]; errors: LoadError[] }> {
+  const { onProgress, cachedRef, onResolved, onWait } = opts;
+  const retry: RetryContext = { budgetMs: GITHUB_RETRY_BUDGET_MS, onWait };
   const v = validateGithubInput(ownerRepo, ref);
   if (v === null) {
     return {
@@ -256,18 +394,20 @@ export async function loadGithubSource(
   const { owner, repo } = v;
   const where = `${owner}/${repo}@${v.ref}`;
   try {
-    const resolved =
-      cachedRef && SHA_RE.test(cachedRef.sha) && Number.isFinite(Date.parse(cachedRef.date))
-        ? cachedRef
-        : await resolveRef(owner, repo, v.ref, signal);
-    const { names, errors } = await listBenchmarks(owner, repo, resolved.sha, signal);
+    const fromCache =
+      cachedRef !== undefined &&
+      SHA_RE.test(cachedRef.sha) &&
+      Number.isFinite(Date.parse(cachedRef.date));
+    const resolved = fromCache ? cachedRef : await resolveRef(owner, repo, v.ref, signal, retry);
+    if (!fromCache && !signal.aborted) onResolved?.(resolved);
+    const { names, errors } = await listBenchmarks(owner, repo, resolved.sha, signal, retry);
     onProgress?.(0, names.length);
     const files: SourceFile[] = [];
     const lastModified = Date.parse(resolved.date);
     for (let i = 0; i < names.length; i++) {
       const name = names[i];
       try {
-        const text = await fetchTable(owner, repo, resolved.sha, name, signal);
+        const text = await fetchTable(owner, repo, resolved.sha, name, signal, retry);
         files.push({ path: `benchmarks/${name}`, text, lastModified });
       } catch (err) {
         if (isAbort(err, signal)) return { sources: [], errors: [] };
