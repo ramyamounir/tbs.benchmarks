@@ -288,9 +288,6 @@ export function ConfigCard() {
             value={config.name}
             className="flex-1 font-mono text-[13px] font-semibold text-text"
           />
-          <span className="shrink-0 rounded bg-row-alt px-1.5 py-px text-[10px] font-semibold text-muted">
-            v2
-          </span>
         </div>
         <div className="mt-0.5 text-[11px] text-muted">
           {config.groups.length} {config.groups.length === 1 ? 'group' : 'groups'} · {experiments}{' '}

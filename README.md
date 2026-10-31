@@ -231,4 +231,4 @@ or any other static host. Commit `package-lock.json`; CI never regenerates it.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[MIT](LICENSE). Not affiliated with or endorsed by the Thousand Brains Project; provided as-is, without warranty.

@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { installKeyboard } from '../state/keyboard';
 import { SIDEBAR_DOCKED_MIN_PX, useAppStore } from '../state/store';
 import { useMediaQuery } from '../util/useMediaQuery';
+import { DisclaimerBanner } from './DisclaimerBanner';
 import { DropOverlay } from './DropOverlay';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Modals } from './Modals';
@@ -13,7 +14,7 @@ import { TopBar } from './TopBar';
 export type SidebarMode = 'docked' | 'drawer';
 
 /**
- * Top bar (and the storage banner) over the sidebar + scrolling main area; toasts and modals on
+ * Top bar (and the disclaimer and storage banners) over the sidebar + scrolling main area; toasts and modals on
  * top. Responsive rules (spec Phase 7): ≥ 1100 px the sidebar is docked (`272px 1fr` grid; the
  * toggle collapses it to 0); below that it is an overlay drawer with a scrim, closed by default,
  * by the scrim and by `Esc` (src/state/keyboard.ts).
@@ -52,6 +53,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg text-text">
       <TopBar />
+      <DisclaimerBanner />
       <StorageBanner />
       <div
         className={`relative grid min-h-0 flex-1 ${!drawer && sidebarOpen ? 'grid-cols-[272px_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)]'}`}
