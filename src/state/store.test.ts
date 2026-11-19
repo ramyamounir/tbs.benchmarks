@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { builtinConfig } from '../config/builtin';
+import { BUILTIN_NAME, builtinConfig } from '../config/builtin';
 import { CORRUPT_KEY, STORAGE_KEY } from '../config/storage';
 import { smallBaseline, smallRun } from '../fixtures/files';
 import { v1SmallConfig } from '../fixtures/v1_small.config';
@@ -18,7 +18,7 @@ describe('initial state', () => {
     expect(s.ui.modal).toBeNull();
     expect(s.ui.banner).toBeNull();
     expect(s.ui.toasts).toEqual([]);
-    expect(s.config.active.name).toBe('tbp-default');
+    expect(s.config.active.name).toBe(BUILTIN_NAME);
     expect(s.config.saved).toHaveLength(1);
     expect(s.config.unsaved).toBe(false);
     expect(s.sources).toEqual({ baseline: null, runs: [], loading: null, errors: [] });
@@ -441,10 +441,10 @@ describe('saved-config persistence', () => {
     });
   const rename = (name: string) => (c: Config) => ({ ...c, name });
 
-  it('(1) first visit seeds tbp-default and writes it immediately', () => {
+  it('(1) first visit seeds the built-in config and writes it immediately', () => {
     const st = memoryStorage();
     const store = createAppStore(st);
-    expect(store.getState().config.active.name).toBe('tbp-default');
+    expect(store.getState().config.active.name).toBe(BUILTIN_NAME);
     expect(store.getState().config.active.config.groups).toHaveLength(7);
     const s = stored(st);
     expect(s.configs).toHaveLength(1);
@@ -472,7 +472,7 @@ describe('saved-config persistence', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const st = memoryStorage({ [STORAGE_KEY]: '{not json' });
     const s = createAppStore(st).getState();
-    expect(s.config.active.name).toBe('tbp-default');
+    expect(s.config.active.name).toBe(BUILTIN_NAME);
     expect(st.getItem(CORRUPT_KEY)).toBe('{not json');
     warn.mockRestore();
   });
@@ -529,7 +529,7 @@ describe('saved-config persistence', () => {
     store.getState().deleteSavedConfig(id);
     const s = store.getState();
     expect(s.config.active.id).not.toBe(id);
-    expect(s.config.active.name).toBe('tbp-default');
+    expect(s.config.active.name).toBe(BUILTIN_NAME);
     expect(stored(st).configs.map((c) => c.id)).toEqual([s.config.active.id]);
   });
 
@@ -678,7 +678,7 @@ describe('saved-config persistence', () => {
     expect(stored(st).configs).toHaveLength(3);
     store.getState().resetBuiltinConfig();
     expect(store.getState().config.active.config.groups).toHaveLength(7);
-    expect(store.getState().config.active.name).toBe('tbp-default');
+    expect(store.getState().config.active.name).toBe(BUILTIN_NAME);
     expect(stored(st).configs).toHaveLength(4);
     expect(stored(st).activeId).toBe(store.getState().config.active.id);
 

@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { importConfigFromFile, type ImportOutcome } from '../components/configActions';
+import { ConfigName } from '../components/ConfigName';
 import { GithubForm } from '../components/GithubForm';
 import { ImportMessage } from '../components/ImportMessage';
 import { Button } from '../components/ui/Button';
 import { Radio } from '../components/ui/Radio';
-import { builtinConfig } from '../config/builtin';
+import { BUILTIN_VERSION, builtinConfig, builtinVersionOf } from '../config/builtin';
 import type { Config } from '../model/types';
 import { openPicker, pickFiles } from '../sources/drop';
 import { useAppStore } from '../state/store';
@@ -146,7 +147,7 @@ function ConfigChoiceCard() {
   const sidebarOpen = useAppStore((s) => s.ui.sidebarOpen);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const [choice, setChoice] = useState<Choice>(
-    activeName === builtinConfig.name ? 'builtin' : 'import',
+    builtinVersionOf(activeName) === BUILTIN_VERSION ? 'builtin' : 'import',
   );
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
 
@@ -181,7 +182,11 @@ function ConfigChoiceCard() {
             setChoice('builtin');
             setOutcome(null);
           }}
-          label="Built-in tbp-default"
+          label={
+            <span className="inline-flex items-center gap-1.5">
+              Built-in <ConfigName name={builtinConfig.name} />
+            </span>
+          }
           description={summary(builtinConfig)}
         />
         <Radio

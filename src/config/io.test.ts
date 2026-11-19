@@ -14,7 +14,7 @@ describe('config io', () => {
 
   it('writes keys in schema order with no YAML anchors', () => {
     const y = toYaml(builtinConfig);
-    expect(y.startsWith('version: 2\nname: tbp-default\n')).toBe(true);
+    expect(y.startsWith('version: 2\nname: tbp-default-v0\n')).toBe(true);
     expect(y).not.toMatch(/[&*]a\d+\b/); // yaml's default anchor names
     expect(y.indexOf('sources:')).toBeLessThan(y.indexOf('metrics:'));
     expect(y.indexOf('groups:')).toBeLessThan(y.indexOf('charts:'));

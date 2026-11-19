@@ -8,7 +8,26 @@ import { emptyConfig } from '../model/types';
  * `match` metric and the v1 `lm2_*` metrics are `LM_2` column overrides on the cows groups (the
  * compositional-model successors of v1's `logos_on_objects`, which has no table any more). When the
  * benchmark tables change, update this by hand; users get current tables via "Generate config".
+ *
+ * Versioning: whenever the config built by `buildBuiltin` is replaced, add one to
+ * `BUILTIN_VERSION`. The number is the `-vN` suffix of the config's name, so a saved or exported
+ * copy says which version it came from, and the sidebar offers the new version to anyone whose
+ * active config is an older one.
  */
+export const BUILTIN_VERSION = 0;
+export const BUILTIN_BASE_NAME = 'tbp-default';
+export const BUILTIN_NAME = `${BUILTIN_BASE_NAME}-v${BUILTIN_VERSION}`;
+
+/**
+ * The built-in version a config name refers to, or null when it is not a built-in name. Copies
+ * saved before versioning are named plain `tbp-default` and count as version 0.
+ */
+export function builtinVersionOf(name: string): number | null {
+  if (name === BUILTIN_BASE_NAME) return 0;
+  if (!name.startsWith(`${BUILTIN_BASE_NAME}-v`)) return null;
+  const digits = name.slice(BUILTIN_BASE_NAME.length + 2);
+  return /^(0|[1-9]\d{0,8})$/.test(digits) ? Number(digits) : null;
+}
 
 const T: Transform = { kind: 'to_number' };
 const R = (decimals: number): Transform => ({ kind: 'round', decimals });
@@ -63,7 +82,7 @@ function buildBuiltin(): Config {
   const base = emptyConfig();
   return {
     version: 2,
-    name: 'tbp-default',
+    name: BUILTIN_NAME,
     description: 'tbp.monty benchmark tables vs wandb exports',
     sources: base.sources,
     metrics: {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCsv } from '../csv/parse';
 import { REPO_HEADERS, WANDB_PR_1184_HEADER } from '../fixtures/headers';
 import { buildSource } from '../model/source';
-import { builtinConfig } from './builtin';
+import { BUILTIN_NAME, BUILTIN_VERSION, builtinConfig, builtinVersionOf } from './builtin';
 import { configIssues } from './validate';
 
 function sources() {
@@ -37,7 +37,8 @@ describe('builtinConfig', () => {
 
   it('has the documented structure', () => {
     const c = builtinConfig;
-    expect(c.name).toBe('tbp-default');
+    expect(c.name).toBe(BUILTIN_NAME);
+    expect(c.name).toBe(`tbp-default-v${BUILTIN_VERSION}`);
     expect(c.groups.map((g) => g.table).sort()).toEqual(Object.keys(REPO_HEADERS).sort());
     expect(c.groups.map((g) => g.name)).toEqual([
       'ycb_10objs',
@@ -67,6 +68,32 @@ describe('builtinConfig', () => {
         const column = o ?? builtinConfig.metrics[k].columns.repo?.column;
         expect(header, `${g.name}.${k}`).toContain(column);
       }
+    }
+  });
+});
+
+describe('builtinVersionOf', () => {
+  it('reads the version from a built-in name', () => {
+    expect(builtinVersionOf(BUILTIN_NAME)).toBe(BUILTIN_VERSION);
+    expect(builtinVersionOf('tbp-default-v0')).toBe(0);
+    expect(builtinVersionOf('tbp-default-v12')).toBe(12);
+  });
+
+  it('counts a copy saved before versioning as version 0', () => {
+    expect(builtinVersionOf('tbp-default')).toBe(0);
+  });
+
+  it('returns null for any other name', () => {
+    for (const name of [
+      'tbp-default copy',
+      'tbp-default-v',
+      'tbp-default-v01',
+      'tbp-default-v1 copy',
+      'tbp-default-v-1',
+      'my-config',
+      '',
+    ]) {
+      expect(builtinVersionOf(name), name).toBeNull();
     }
   });
 });

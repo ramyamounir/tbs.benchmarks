@@ -1,6 +1,6 @@
 import { useExperimentCount } from '../state/selectors';
 import { useAppStore } from '../state/store';
-import { DisplayName } from '../util/DisplayName';
+import { ConfigName } from './ConfigName';
 
 const BREADCRUMB_MAX = 48;
 
@@ -26,7 +26,7 @@ export function Breadcrumb() {
       <span className="flex shrink-0 max-[1100px]:hidden">
         <Sep />
       </span>
-      <DisplayName value={name} max={BREADCRUMB_MAX} className="shrink rounded bg-row-alt px-1.5" />
+      <ConfigName name={name} max={BREADCRUMB_MAX} className="shrink rounded bg-row-alt px-1.5" />
       {unsaved && (
         <span
           title="Not saved in this browser — export the config to keep it"

@@ -88,7 +88,7 @@ A config is a YAML (or JSON) document. Excerpt:
 
 ```yaml
 version: 2
-name: tbp-default
+name: tbp-default-v0
 description: Monty benchmark tables vs wandb exports # optional
 sources:
   repo: { id_column: Experiment, match: exact } # match: exact | suffix | { regex: "…" }
@@ -176,7 +176,8 @@ per-group `column_overrides`, `higher_is_better` becomes `direction`, and `num_e
 `prediction_error`. The unmodified `configs_repo_wandb.yaml` references `logos_on_objects.csv`,
 which no longer exists in `tbp.monty/benchmarks/`; the app reports that group as invalid instead
 of failing. The built-in `tbp-default` has one group per current table (7 groups, 38 experiments,
-12 metrics).
+12 metrics). It is versioned: the name ends in `-vN` (currently `tbp-default-v0`), and the number
+goes up by one each time the built-in config is replaced.
 
 ## Development
 

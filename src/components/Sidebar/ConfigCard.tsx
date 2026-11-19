@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { BUILTIN_NAME, BUILTIN_VERSION, builtinVersionOf } from '../../config/builtin';
 import { MAX_SAVED, MAX_SAVED_NAME } from '../../config/storage';
 import type { SavedConfigMeta } from '../../model/types';
 import { pickFiles } from '../../sources/drop';
@@ -7,6 +8,7 @@ import { relativeTime } from '../../util/dates';
 import { displayName } from '../../util/displayName';
 import { DisplayName } from '../../util/DisplayName';
 import { exportConfig, importConfigFromFile, type ImportOutcome } from '../configActions';
+import { ConfigName } from '../ConfigName';
 import { ImportMessage } from '../ImportMessage';
 import { Button } from '../ui/Button';
 import { DropMenu } from '../ui/DropMenu';
@@ -142,7 +144,7 @@ function SavedRow({
   return (
     <li className="flex min-w-0 items-center gap-1.5 px-3 py-1.5">
       <span className="flex min-w-0 flex-1 flex-col">
-        <DisplayName value={meta.name} className="font-mono text-[12px] text-text" />
+        <ConfigName name={meta.name} className="font-mono text-[12px] text-text" />
         <span className="text-[11px] text-faint">{relativeTime(meta.updatedAt, now)}</span>
       </span>
       {active ? (
@@ -249,7 +251,7 @@ function SavedPopover() {
             <Button size="sm" onClick={newEmpty}>
               New empty config
             </Button>
-            <Button size="sm" onClick={resetBuiltin} title="Add a fresh copy of tbp-default">
+            <Button size="sm" onClick={resetBuiltin} title={`Add a fresh copy of ${BUILTIN_NAME}`}>
               Reset built-in
             </Button>
           </div>
@@ -267,8 +269,11 @@ export function ConfigCard() {
   const active = useAppStore((s) => s.config.active);
   const unsaved = useAppStore((s) => s.config.unsaved);
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
+  const resetBuiltin = useAppStore((s) => s.resetBuiltinConfig);
   const now = useNow();
   const config = active.config;
+  const builtinVersion = builtinVersionOf(config.name);
+  const outdated = builtinVersion !== null && builtinVersion < BUILTIN_VERSION;
   const experiments = config.groups.reduce((n, g) => n + g.experiments.length, 0);
   const metrics = Object.keys(config.metrics).length;
 
@@ -284,10 +289,12 @@ export function ConfigCard() {
           <span className="shrink-0 text-muted">
             <FileIcon />
           </span>
-          <DisplayName
-            value={config.name}
-            className="flex-1 font-mono text-[13px] font-semibold text-text"
-          />
+          <span className="flex min-w-0 flex-1">
+            <ConfigName
+              name={config.name}
+              className="font-mono text-[13px] font-semibold text-text"
+            />
+          </span>
         </div>
         <div className="mt-0.5 text-[11px] text-muted">
           {config.groups.length} {config.groups.length === 1 ? 'group' : 'groups'} · {experiments}{' '}
@@ -314,6 +321,21 @@ export function ConfigCard() {
           />
         </div>
         <ImportMessage outcome={outcome} />
+        {outdated && (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded border border-border bg-row-alt px-2 py-1.5 text-[11px] text-muted">
+            <span>
+              Built-in config <span className="font-mono text-text">v{BUILTIN_VERSION}</span> is
+              available
+            </span>
+            <Button
+              size="sm"
+              onClick={resetBuiltin}
+              title={`Add ${BUILTIN_NAME} as a new config; this one is kept`}
+            >
+              Use v{BUILTIN_VERSION}
+            </Button>
+          </div>
+        )}
       </div>
     </SidebarSection>
   );
