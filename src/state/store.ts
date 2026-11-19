@@ -94,6 +94,8 @@ export interface SessionState {
     sort: 'config' | 'name' | 'regressions';
     expanded: Set<string>;
     metrics: Set<string>;
+    /** Markdown copy/download wraps the report in a `<details>` block (GitHub collapsed section). */
+    collapsible: boolean;
   };
   charts: { selected: string | null };
   config: {
@@ -210,7 +212,14 @@ export function initialSession(): SessionState {
       includeMissing: true,
       cellColor: 'tolerance',
     },
-    table: { filter: '', chip: 'all', sort: 'config', expanded: new Set(), metrics: new Set() },
+    table: {
+      filter: '',
+      chip: 'all',
+      sort: 'config',
+      expanded: new Set(),
+      metrics: new Set(),
+      collapsible: false,
+    },
     charts: { selected: null },
     config: {
       tab: 'groups',

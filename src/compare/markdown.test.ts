@@ -5,7 +5,7 @@ import { v1SmallConfig } from '../fixtures/v1_small.config';
 import { buildSource } from '../model/source';
 import type { Config } from '../model/types';
 import { compareAll } from './compare';
-import { renderMarkdown } from './markdown';
+import { renderMarkdown, wrapCollapsible } from './markdown';
 
 const EXPECTED = fixturePath('v1_expected.md');
 
@@ -70,6 +70,16 @@ describe('renderMarkdown', () => {
     expect(md2.endsWith('|\n')).toBe(true);
   });
 
+  it('wraps the whole report in one details block when collapsible', () => {
+    const config = v1SmallConfig();
+    const cmp = compareAll(config, smallBaseline(), [smallRun('one')], {});
+    const opts = { baselineLabel: 'B', runLabels: ['one'] };
+    const plain = renderMarkdown(cmp, config, opts);
+    const md = renderMarkdown(cmp, config, { ...opts, collapsible: true });
+    expect(md).toBe(`<details>\n<summary>Benchmark Results</summary>\n\n${plain}\n</details>\n`);
+    expect(md.match(/<details>/g)).toHaveLength(1);
+  });
+
   it.skipIf(!existsSync(EXPECTED))('reproduces v1 compare.py output byte for byte', () => {
     const text = readFileSync(EXPECTED, 'utf8');
     const expected = text.slice(text.indexOf('\n') + 1);
@@ -78,5 +88,19 @@ describe('renderMarkdown', () => {
     expect(
       renderMarkdown(cmp, config, { baselineLabel: 'Baseline', runLabels: ['Proposed'] }),
     ).toBe(expected);
+  });
+});
+
+describe('wrapCollapsible', () => {
+  it('wraps the report in a details block with blank lines around the body', () => {
+    expect(wrapCollapsible('### a\n\n| x |\n| --- |\n')).toBe(
+      '<details>\n<summary>Benchmark Results</summary>\n\n### a\n\n| x |\n| --- |\n\n</details>\n',
+    );
+  });
+
+  it('escapes the summary and keeps it on one line', () => {
+    expect(wrapCollapsible('x', 'a <b> & c\nd')).toBe(
+      '<details>\n<summary>a &lt;b&gt; &amp; c d</summary>\n\nx\n\n</details>\n',
+    );
   });
 });

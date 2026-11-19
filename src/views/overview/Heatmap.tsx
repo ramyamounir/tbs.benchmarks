@@ -1,8 +1,16 @@
 import { memo, useCallback, useState } from 'react';
 import { runBg } from '../../components/runColor';
-import { VERDICT_GLYPH } from '../../components/ui/verdict';
+import { VERDICT_GLYPH, VERDICT_LABEL } from '../../components/ui/verdict';
 import type { Bounds } from '../../components/ui/tooltipPlacement';
-import type { Cell, Config, ExperimentRow, Metric, Source } from '../../model/types';
+import type {
+  Cell,
+  Comparison,
+  Config,
+  ExperimentRow,
+  Metric,
+  Source,
+  Verdict,
+} from '../../model/types';
 import { experimentKey } from '../../state/selectors';
 import { useAppStore } from '../../state/store';
 import { displayName } from '../../util/displayName';
@@ -13,12 +21,56 @@ import { formatDelta, formatValue, type OverviewModel } from './model';
 
 /*
  * Geometry (spec Phase 3 "Heatmap geometry"): 18 px cells with a 4 px gap, a run block is
- * `metrics × 22 + 16` px wide and blocks are 24 px apart; rows 23 px, group headers 28 px, header
- * 110 px; the experiment column is 320 px and sticky. Every configured experiment is rendered.
+ * `metrics × 22 + 16` px wide (never narrower than the run's verdict counts) and blocks are 24 px
+ * apart; rows 23 px, group headers 28 px, header 144 px; the experiment column is 320 px and
+ * sticky. Every configured experiment is rendered.
  */
 // Narrower below 900 px so a few run columns stay visible next to the names (Phase 7).
 const NAME_COL = 'w-[200px] min-w-[200px] mid:w-[320px] mid:min-w-[320px]';
-const blockWidth = (metrics: number) => metrics * 22 + 16;
+const MIN_BLOCK = 176;
+const blockWidth = (metrics: number) => Math.max(metrics * 22 + 16, MIN_BLOCK);
+
+const COUNT_TONE = {
+  worse: 'text-worse',
+  better: 'text-better',
+  same: 'text-muted',
+  missing: 'text-faint',
+} as const;
+
+/** A run's verdict totals, sitting on top of its colour bar so they line up with its columns. */
+function RunCounts({ counts, label }: { counts: Record<Verdict, number>; label: string }) {
+  const items = [
+    { key: 'worse', n: counts.worse + counts.mismatch },
+    { key: 'better', n: counts.better },
+    { key: 'same', n: counts.same },
+    { key: 'missing', n: counts.missing },
+  ] as const;
+  return (
+    <div
+      role="group"
+      aria-label={`Verdict counts for ${label}`}
+      className="mb-1.5 flex items-baseline gap-3 font-mono text-[11px] leading-4 tabular-nums"
+    >
+      {items.map(({ key, n }) => (
+        <span
+          key={key}
+          title={`${n} ${VERDICT_LABEL[key]}`}
+          className={`flex items-baseline gap-1 ${n === 0 ? 'text-faint opacity-60' : COUNT_TONE[key]}`}
+        >
+          <span aria-hidden="true" className="text-[10px]">
+            {VERDICT_GLYPH[key]}
+          </span>
+          <span aria-hidden="true" className="font-semibold">
+            {n}
+          </span>
+          <span className="sr-only">
+            {n} {VERDICT_LABEL[key]}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 const FILL = {
   better: ['bg-heat-same', 'bg-heat-better-1', 'bg-heat-better-2', 'bg-heat-better-3'],
@@ -126,11 +178,13 @@ const HeatRow = memo(function HeatRow({
 
 /** Experiments × (runs × metrics) verdict heatmap with collapsible groups and a cell tooltip. */
 export function Heatmap({
+  cmp,
   model,
   config,
   runs,
   allRuns,
 }: {
+  cmp: Comparison;
   model: OverviewModel;
   config: Config;
   runs: Source[];
@@ -163,44 +217,58 @@ export function Heatmap({
   return (
     <div className="relative max-h-[calc(100vh-240px)] min-h-[320px] overflow-auto rounded-lg border border-border bg-panel">
       <div style={{ minWidth: width }}>
-        {/* Sticky column header: run colour bars + rotated metric labels. */}
-        <div className="sticky top-0 z-20 flex h-[110px] items-end border-b border-border bg-panel pb-2">
+        {/* Sticky column header: verdict counts, run colour bar and name, rotated metric labels. */}
+        <div className="sticky top-0 z-20 flex h-[144px] items-end border-b border-border bg-panel pb-2">
           <div
             className={`${NAME_COL} sticky left-0 z-10 self-stretch bg-panel px-4 pb-0 text-[11px] font-semibold tracking-wide text-muted uppercase`}
           >
             <span className="absolute bottom-2">Experiment</span>
           </div>
-          {runs.map((run) => (
-            <div
-              key={run.id}
-              className="ml-6 flex h-full shrink-0 flex-col"
-              style={{ width: blockWidth(metrics.length) }}
-            >
-              <span
-                aria-hidden="true"
-                className={`h-[3px] w-full rounded ${runBg(allRuns.indexOf(run))}`}
-              />
-              <DisplayName
-                value={run.label}
-                className="mt-0.5 block font-mono text-[11px] text-text"
-              />
-              <div className="mt-auto flex gap-1 px-2">
-                {metrics.map((k) => (
-                  <span
-                    key={k}
-                    className="flex h-[80px] w-[18px] shrink-0 items-end justify-center overflow-hidden"
-                  >
+          {runs.map((run) => {
+            const stats = cmp.runs.find((r) => r.source.id === run.id);
+            return (
+              <div
+                key={run.id}
+                className="ml-6 flex h-full shrink-0 flex-col pt-2"
+                style={{ width: blockWidth(metrics.length) }}
+              >
+                {stats && <RunCounts counts={stats.counts} label={displayName(run.label).full} />}
+                <span
+                  aria-hidden="true"
+                  className={`h-[3px] w-full shrink-0 rounded ${runBg(allRuns.indexOf(run))}`}
+                />
+                <div className="mt-1 flex min-w-0 items-baseline gap-2">
+                  <DisplayName
+                    value={run.label}
+                    className="min-w-0 font-mono text-[11px] font-medium text-text"
+                  />
+                  {stats?.coverage.partial && (
                     <span
-                      className="rotate-180 truncate font-mono text-[10px] text-muted [writing-mode:vertical-rl]"
-                      title={displayName(config.metrics[k]?.label ?? k).full}
+                      className="shrink-0 text-[10px] text-warn"
+                      title={`${stats.coverage.found} of ${stats.coverage.total} experiments found`}
                     >
-                      {displayName(config.metrics[k]?.label ?? k, { max: 13 }).text}
+                      partial run
                     </span>
-                  </span>
-                ))}
+                  )}
+                </div>
+                <div className="mt-auto flex gap-1 px-2">
+                  {metrics.map((k) => (
+                    <span
+                      key={k}
+                      className="flex h-[80px] w-[18px] shrink-0 items-end justify-center overflow-hidden"
+                    >
+                      <span
+                        className="rotate-180 truncate font-mono text-[10px] text-muted [writing-mode:vertical-rl]"
+                        title={displayName(config.metrics[k]?.label ?? k).full}
+                      >
+                        {displayName(config.metrics[k]?.label ?? k, { max: 13 }).text}
+                      </span>
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {model.groups.map((g) => {

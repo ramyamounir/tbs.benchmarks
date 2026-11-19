@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { runBg } from '../../components/runColor';
 import { Button } from '../../components/ui/Button';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { Chip } from '../../components/ui/Chip';
 import { CopyFallback } from '../../components/ui/CopyFallback';
 import { DropMenu, type DropMenuItem } from '../../components/ui/DropMenu';
@@ -566,6 +567,7 @@ export function TableView() {
       baselineLabel: baseline.label,
       runLabels: runs.map((r) => r.label),
       runIds: runs.map((r) => r.id),
+      collapsible: table.collapsible,
     });
 
   const copy = async (scope: MarkdownScope) => {
@@ -574,7 +576,10 @@ export function TableView() {
     const text = markdownOf(c);
     setFallback(null);
     if (await copyText(text)) {
-      pushToast('info', `Copied ${n} ${n === 1 ? 'experiment' : 'experiments'} as Markdown`);
+      pushToast(
+        'info',
+        `Copied ${n} ${n === 1 ? 'experiment' : 'experiments'} as ${table.collapsible ? 'collapsible ' : ''}Markdown`,
+      );
     } else {
       setFallback(text);
     }
@@ -631,6 +636,16 @@ export function TableView() {
           <Button variant="ghost" onClick={expandAll} disabled={shownKeys.length === 0}>
             {allExpanded ? 'Collapse all' : 'Expand all'}
           </Button>
+          <Checkbox
+            checked={table.collapsible}
+            onChange={(collapsible) => setSession({ table: { collapsible } })}
+            label={
+              <span title="Wrap the copied or downloaded Markdown in a <details> block, so it shows as a collapsed section on GitHub">
+                Collapsible
+              </span>
+            }
+            className="text-muted"
+          />
           <DropMenu
             align="right"
             ariaLabel="Copy as Markdown"

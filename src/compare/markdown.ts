@@ -8,6 +8,24 @@ export interface MarkdownOptions {
   runLabels: string[];
   /** Which runs to include, in order (e.g. only the visible ones). Default: `comparison.runs`. */
   runIds?: RunId[];
+  /** Wrap the report in a `<details>` block (see `wrapCollapsible`). Default: false. */
+  collapsible?: boolean;
+}
+
+export const COLLAPSIBLE_SUMMARY = 'Benchmark Results';
+
+/**
+ * Wraps Markdown in a `<details>` block so GitHub shows it as a collapsed section. The blank lines
+ * after `</summary>` and before `</details>` are required: without them GitHub treats the body as
+ * raw HTML and the tables do not render. `summary` is HTML-escaped.
+ */
+export function wrapCollapsible(markdown: string, summary: string = COLLAPSIBLE_SUMMARY): string {
+  const safe = summary
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<details>\n<summary>${safe}</summary>\n\n${markdown.trim()}\n\n</details>\n`;
 }
 
 /**
@@ -72,5 +90,6 @@ export function renderMarkdown(
       parts.push(lines.join('\n'));
     }
   }
-  return parts.join('\n').trim() + '\n';
+  const text = parts.join('\n').trim() + '\n';
+  return opts.collapsible ? wrapCollapsible(text) : text;
 }

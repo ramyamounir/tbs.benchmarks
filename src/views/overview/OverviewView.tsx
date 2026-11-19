@@ -5,7 +5,6 @@ import { useAppStore } from '../../state/store';
 import { DisplayName } from '../../util/DisplayName';
 import { Heatmap } from './Heatmap';
 import { overviewModel } from './model';
-import { RunCards } from './RunCards';
 
 function Legend() {
   const sw = 'inline-block h-3 w-3.5 rounded-[2px]';
@@ -37,7 +36,7 @@ function Legend() {
   );
 }
 
-/** Overview: header + legend, one card per run, and the verdict heatmap. */
+/** Overview: header + legend and the verdict heatmap, whose column headers carry each run's counts. */
 export function OverviewView() {
   const cmp = useComparison();
   const config = useAppStore((s) => s.config.active.config);
@@ -105,10 +104,7 @@ export function OverviewView() {
           Every run is hidden. Use the eye toggles in the sidebar.
         </p>
       ) : (
-        <>
-          <RunCards cmp={cmp} runs={runs} allRuns={allRuns} />
-          <Heatmap model={model} config={config} runs={runs} allRuns={allRuns} />
-        </>
+        <Heatmap cmp={cmp} model={model} config={config} runs={runs} allRuns={allRuns} />
       )}
     </div>
   );
